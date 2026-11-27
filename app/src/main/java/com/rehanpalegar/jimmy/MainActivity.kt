@@ -15,6 +15,9 @@ import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
 
@@ -72,13 +75,67 @@ class MainActivity : Activity() {
             }
         }
 
+        val connectionButton = Button(this).apply {
+            text = "TEST ESP32 CONNECTION"
+            setOnClickListener {
+                testEsp32Connection()
+            }
+        }
+
         layout.addView(title)
         layout.addView(status)
         layout.addView(result)
         layout.addView(englishButton)
         layout.addView(hindiButton)
+        layout.addView(connectionButton)
 
         setContentView(layout)
+    }
+
+    private fun testEsp32Connection() {
+        status.text = "Connecting to ESP32..."
+
+        thread {
+            var connection: HttpURLConnection? = null
+
+            try {
+                connection = URL(
+                    "http://192.168.4.1/api/status"
+                ).openConnection() as HttpURLConnection
+
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+
+                val responseCode = connection.responseCode
+
+                val response = if (responseCode == 200) {
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+                } else {
+                    "HTTP Error: $responseCode"
+                }
+
+                runOnUiThread {
+                    if (responseCode == 200) {
+                        status.text = "ESP32 Connected!"
+                        result.text = response
+                    } else {
+                        status.text = "ESP32 Connection Failed"
+                        result.text = response
+                    }
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    status.text = "Connection Failed"
+                    result.text = e.message ?: "Unknown error"
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
     }
 
     private fun startVoiceRecognition() {
