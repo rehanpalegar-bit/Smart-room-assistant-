@@ -35,11 +35,12 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        run: 
+        run: gradle assembleDebug --stacktrace --info
+
       - name: Verify APK Signature
-        run: run: gradle assembleDebug --stacktrace --info
-          "$ANDROID_HOME/
-          build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
