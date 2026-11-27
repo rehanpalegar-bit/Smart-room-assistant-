@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var result: TextView
     private var speechRecognizer: SpeechRecognizer? = null
+    private var selectedLanguage = "en-IN"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,9 +56,18 @@ class MainActivity : Activity() {
             setPadding(0, 20, 0, 20)
         }
 
-        val button = Button(this).apply {
-            text = "SPEAK TO JIMMY"
+        val englishButton = Button(this).apply {
+            text = "ENGLISH VOICE"
             setOnClickListener {
+                selectedLanguage = "en-IN"
+                startVoiceRecognition()
+            }
+        }
+
+        val hindiButton = Button(this).apply {
+            text = "HINDI VOICE"
+            setOnClickListener {
+                selectedLanguage = "hi-IN"
                 startVoiceRecognition()
             }
         }
@@ -65,7 +75,8 @@ class MainActivity : Activity() {
         layout.addView(title)
         layout.addView(status)
         layout.addView(result)
-        layout.addView(button)
+        layout.addView(englishButton)
+        layout.addView(hindiButton)
 
         setContentView(layout)
     }
@@ -86,6 +97,7 @@ class MainActivity : Activity() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+
             override fun onReadyForSpeech(params: Bundle?) {
                 status.text = "Listening..."
             }
@@ -120,20 +132,9 @@ class MainActivity : Activity() {
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak in Hindi or English")
-
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                putExtra(
-                    RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION,
-                    true
-                )
-                putStringArrayListExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES,
-                    arrayListOf("en-IN", "hi-IN")
-                )
-            }
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLanguage)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, selectedLanguage)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to JIMMY")
         }
 
         speechRecognizer?.startListening(intent)
