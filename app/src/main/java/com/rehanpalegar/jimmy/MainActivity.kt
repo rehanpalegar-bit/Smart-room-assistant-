@@ -17,7 +17,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import kotlin.concurrent.thread
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -25,6 +27,15 @@ class MainActivity : Activity() {
     private lateinit var result: TextView
     private var speechRecognizer: SpeechRecognizer? = null
     private var selectedLanguage = "en-IN"
+
+    private val devices = mapOf(
+        "light" to 1,
+        "fan" to 2,
+        "lamp" to 3,
+        "socket" to 4,
+        "profile" to 5,
+        "hanger" to 6
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,6 +103,102 @@ class MainActivity : Activity() {
         setContentView(layout)
     }
 
+    private fun normalize(text: String): String {
+        return text.lowercase(Locale.ROOT)
+            .replace("light", "light")
+            .replace("chalu", "on")
+            .replace("chaalu", "on")
+            .replace("band karo", "off")
+            .replace("band kar do", "off")
+            .replace("बंद करो", "off")
+            .replace("बंद कर दो", "off")
+            .replace("चालू करो", "on")
+            .replace("चालू कर दो", "on")
+            .replace("पंखा", "fan")
+            .replace("बत्ती", "light")
+            .replace("लाइट", "light")
+            .replace("लैंप", "lamp")
+            .replace("सॉकेट", "socket")
+            .replace("प्लग", "socket")
+            .replace("प्रोफाइल लाइट", "profile light")
+            .replace("हैंगर लाइट", "hanger light")
+            .replace("चालू", "on")
+            .replace("बंद", "off")
+    }
+
+    private fun processCommand(command: String) {
+        val text = normalize(command)
+
+        val channel = when {
+            text.contains("profile") -> 5
+            text.contains("hanger") -> 6
+            text.contains("socket") || text.contains("plug") -> 4
+            text.contains("fan") -> 2
+            text.contains("lamp") -> 3
+            text.contains("light") -> 1
+            else -> 0
+        }
+
+        val action = when {
+            text.contains("off") -> "off"
+            text.contains("on") -> "on"
+            else -> ""
+        }
+
+        if (channel == 0 || action.isEmpty()) {
+            status.text = "Command not understood"
+            return
+        }
+
+        result.text = "Device channel: CH$channel\nAction: $action"
+        status.text = "Sending command..."
+
+        controlRelay(channel, action)
+    }
+
+    private fun controlRelay(channel: Int, action: String) {
+        thread {
+            var connection: HttpURLConnection? = null
+
+            try {
+                val url = URL(
+                    "http://192.168.4.1/api/relay?ch=$channel&state=$action"
+                )
+
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+
+                val code = connection.responseCode
+                val response = if (code in 200..299) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() }
+                        ?: "HTTP Error: $code"
+                }
+
+                runOnUiThread {
+                    if (code in 200..299) {
+                        status.text = "Command sent successfully!"
+                        result.text = "CH$channel $action\n$response"
+                    } else {
+                        status.text = "Relay command failed"
+                        result.text = response
+                    }
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    status.text = "Connection failed"
+                    result.text = e.message ?: "Unknown error"
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
     private fun testEsp32Connection() {
         status.text = "Connecting to ESP32..."
 
@@ -107,24 +214,18 @@ class MainActivity : Activity() {
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
 
-                val responseCode = connection.responseCode
-
-                val response = if (responseCode == 200) {
-                    connection.inputStream.bufferedReader().use {
-                        it.readText()
-                    }
+                val code = connection.responseCode
+                val response = if (code == 200) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
                 } else {
-                    "HTTP Error: $responseCode"
+                    "HTTP Error: $code"
                 }
 
                 runOnUiThread {
-                    if (responseCode == 200) {
-                        status.text = "ESP32 Connected!"
-                        result.text = response
-                    } else {
-                        status.text = "ESP32 Connection Failed"
-                        result.text = response
-                    }
+                    status.text =
+                        if (code == 200) "ESP32 Connected!"
+                        else "ESP32 Connection Failed"
+                    result.text = response
                 }
 
             } catch (e: Exception) {
@@ -176,8 +277,10 @@ class MainActivity : Activity() {
 
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(RESULTS_RECOGNITION)
-                result.text = matches?.firstOrNull() ?: "No speech detected"
-                status.text = "Command received"
+                val spokenText = matches?.firstOrNull() ?: ""
+
+                result.text = "You said: $spokenText"
+                processCommand(spokenText)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {}
