@@ -34,6 +34,18 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Validate Android Manifest XML
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          try:
+              ET.parse("app/src/main/AndroidManifest.xml")
+              print("Manifest XML syntax OK")
+          except ET.ParseError as e:
+              print(f"Manifest XML error: {e}")
+              raise
+          PY
+          
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace --info
 
